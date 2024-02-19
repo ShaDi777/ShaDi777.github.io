@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magnetic Field of Helmholtz Coils</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<style>
+        html, body {
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Магнитное поле катушек Гельмгольца. Визуализация графика B(x)</h1>
+    <!-- Создаем элемент canvas для отображения графика -->
+    <canvas id="magneticFieldChart" width="800" height="400"></canvas>
+
+    <!-- Ввод параметров -->
+	<table>
+        <tr>
+            <td><label for="radius">Радиус катушки (м):</label></td>
+            <td><input type="number" id="radius" value="1"></td>
+        </tr>
+		<tr>
+            <td><label for="turnCount">Число витков:</label></td>
+            <td><input type="number" id="turnCount" value="100"></td>
+        </tr>
+		<tr>
+            <td><label for="amper">Сила тока (A):</label></td>
+            <td><input type="number" id="amper" value="1"></td>
+        </tr>
+		<tr>
+            <td><label for="xMin">Начальная координата X (м):</label></td>
+            <td><input type="number" id="xMin" placeholder="-0.5 * Radius"></td>
+        </tr>
+		<tr>
+            <td><label for="xMax">Конечная координата X (м):</label></td>
+            <td><input type="number" id="xMax" placeholder="1.5 * Radius"></td>
+        </tr>
+		<tr>
+            <td><label for="dotCount">Количество точек на графике:</label></td>
+            <td><input type="number" id="dotCount" placeholder="500"></td>
+        </tr>
+		<tr>
+            <td></td>
+            <td><button onclick="updateChart()">Построить график</button></td>
+        </tr>
+	</table>
+
+    <script>
+		// Функция для расчета магнитного поля в точке x для катушки Гельмгольца
+		function calculateMagneticField(x, radius, turnCount, amper) {
+			const mu_0 = 4 * Math.PI * Math.pow(10, -7); // Магнитная постоянная
+			const B = (mu_0 * turnCount * amper * Math.pow(radius, 2)) / (2 * Math.pow(Math.pow(radius, 2) + Math.pow(x, 2), 3 / 2));
+			return B;
+		}
+
+        // Функция для обновления графика
+        function updateChart() {
+			const radius = parseFloat(document.getElementById('radius').value);
+            const turnCount = parseInt(document.getElementById('turnCount').value);
+            const amper = parseFloat(document.getElementById('amper').value);
+			
+			let abort = false;
+			if (radius <= 0) {
+				alert("Радиус должен быть положительным числом.");
+				document.getElementById('radius').value = "";
+				abort = true;
+			}
+			
+			var isValidTurnCount = /^\d*$/.test(document.getElementById('turnCount').value);
+			if (!isValidTurnCount || turnCount <= 0) {
+				alert("Число витков должно быть целым и положительным.");
+				document.getElementById('turnCount').value = "";
+				abort = true;
+			}
+			
+			if (amper <= 0) {
+				alert("Сила тока должена быть положительной.");
+				document.getElementById('amper').value = "";
+				abort = true;
+			}
+			if (abort) {
+				return;
+			}
+
+            const ctx = document.getElementById('magneticFieldChart').getContext('2d');
+
+            // Генерируем значения x
+			const xMin = parseFloat(document.getElementById('xMin').value) || -radius / 2;
+			const xMax = parseFloat(document.getElementById('xMax').value) || radius + (radius / 2);
+			let dotCount = parseFloat(document.getElementById('dotCount').value) || 500;
+			if (dotCount <= 0) {
+				dotCount = 500;
+				document.getElementById('dotCount').value = "500"
+			}
+
+            const xValues = [];
+            for (let x = xMin; x <= xMax; x += ((xMax - xMin) / dotCount)) {
+                xValues.push(x);
+            }
+
+            // Вычисляем значения магнитного поля для каждого значения x
+            const yValues = xValues.map(x => calculateMagneticField(x, radius, turnCount, amper));
+
+            // Создаем новый график
+			if (this.magneticFieldChart instanceof Chart) {
+				this.magneticFieldChart.destroy(); // Уничтожаем предыдущий график, если он существует
+			}
+
+			let merger = (arr1, arr2) => {
+				let new_array = [];
+				for (let i = 0; i < arr1.size; i++) {
+					new_array.push(
+						"(" + arr1[i] + ", " + arr2[i] + ")"
+					);
+				}
+				return new_array;
+			};
+
+			this.magneticFieldChart = new Chart(ctx, {
+				type: 'line',
+				data: {
+					labels: xValues,
+					datasets: [{
+						label: 'График',
+						data: yValues,
+						backgroundColor: 'rgba(0, 0, 255, 0.3)',
+						borderColor: 'rgba(0, 0, 255, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Координата X (м)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Магнитная индукция B (Тл)'
+							}
+						}
+					}
+				}
+			});
+
+        }
+
+        // Инициализация графика при загрузке страницы
+        updateChart();
+    </script>
+</body>
+</html>
