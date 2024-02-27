@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Симуляция магнитного поля</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            image-rendering: pixelated;
+        }
+        #currentStrengthSection {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+	<p>Чем ярче синий цвет, тем больше индукция в данной точке. Черный цвет означает очень малое значение или полное отсутствие магнитной индукции.</p>
+	<p>На рисунке направление тока будет обозначено знаками "х" и "•", что соответственно означает направление "ОТ НАБЛЮДАТЕЛЯ" и "К НАБЛЮДАТЕЛЮ"</p>
+    <p>Сначала вводится значение силы тока в поле для ввода. Затем при клике левой кнопкой мыши на холст в нем будет отрисован новый ток. Повторный клик изменит направление тока.</p>
+	<p>Для удаления тока следует кликнуть на него правой кнопкой мыши.</p>
+	<p>Можно очистить весь холст, нажав на соответствующую кнопку внизу страницы.</p>
+	<canvas id="myCanvas" width="600" height="400"></canvas>
+    <div id="currentStrengthSection">
+        <label for="currentStrength">Введите силу тока:</label>
+        <input type="number" id="currentStrength" value="1">
+    </div>
+    <button id="clearButton">Очистить холст</button>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+			// Values
+			const radius = 10;
+			const maxArrowLength = 30;
+			const linesAround = 3;
+			var maxInduction = 0;
+			var minInduction = 0;
+
+            var canvas = document.getElementById('myCanvas');
+            var context = canvas.getContext('2d');
+            var currentStrengthInput = document.getElementById('currentStrength');
+            var clearButton = document.getElementById('clearButton');
+
+            var currents = [];
+			
+// ==================================================================
+			function calculateInduction(x, y) {
+				var totalBx = 0;
+				var totalBy = 0;
+
+				var inside = false;
+				currents.forEach(current => {
+					const dx = x - current.x
+					const dy = y - current.y
+					const angle = Math.atan2(dy, dx) + (Math.PI / 2) * (current.strength > 0 ? 1 : -1)
+					const r = Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2));
+					const B = (Math.abs(current.strength) * 4 * Math.PI * 0.0000001) / (2 * Math.PI * r);
+					
+					if (r < (0.9 * radius)) inside = true;
+		
+					totalBx += B * Math.cos(angle)
+					totalBy += B * Math.sin(angle)
+				});
+
+				if (inside) return 0;
+
+				const totalB = Math.sqrt(Math.pow(totalBx, 2) + Math.pow(totalBy, 2));
+				maxInduction = Math.max(maxInduction, totalB);
+				return {dx: totalBx, dy: totalBy, value: totalB};
+			}
+			
+			function getInductionColor(induction) {
+				const coef = induction / maxInduction;
+				const color = coef * 255;
+				return `rgb(0, 0, ${color})`;
+			}
+
+			function calculateMaxInduction() {
+				for (let x = 0; x < canvas.width; x++) {
+					for (let y = 0; y < canvas.height; y++) {
+						calculateInduction(x, y);
+					}
+				}
+			}
+			
+			function drawArrow(x0, y0) {
+				var induction = calculateInduction(x0, y0);
+                var dx = induction.dx;
+                var dy = induction.dy;
+			
+                var angle = Math.atan2(dy, dx);
+                var length = Math.sqrt(dx * dx + dy * dy);
+				var norm = length / maxInduction;
+
+				length = norm * maxArrowLength;
+				var x1 = x0 + Math.cos(angle) * length;
+				var y1 = y0 + Math.sin(angle) * length;
+				
+                context.beginPath();
+                context.moveTo(x0, y0);
+                context.lineTo(x1, y1);
+                context.strokeStyle = 'white';
+                context.lineWidth = 2;
+                context.stroke();
+
+				var smallLength = length / 3;
+                context.beginPath();
+                context.moveTo(x1, y1);
+                context.lineTo(x1 - smallLength * Math.cos(angle - Math.PI / 6), y1 - smallLength * Math.sin(angle - Math.PI / 6));
+                context.moveTo(x1, y1);
+                context.lineTo(x1 - smallLength * Math.cos(angle + Math.PI / 6), y1 - smallLength * Math.sin(angle + Math.PI / 6));
+                context.strokeStyle = 'white';
+                context.lineWidth = 2;
+                context.stroke();
+            }
+
+			// MAIN DRAWER
+            function drawMagneticField() {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+				
+				calculateMaxInduction();
+
+				for (let x = 0; x < canvas.width; x++) {
+					for (let y = 0; y < canvas.height; y++) {
+						const induction = calculateInduction(x, y).value;
+						const color = getInductionColor(induction);
+
+						context.fillStyle = color;
+						context.fillRect(x, y, 1, 1);
+					}
+				}
+				
+				currents.forEach(function(current) {
+                    context.beginPath();
+					var symbol = "х";
+                    if (current.strength > 0) {
+                        context.fillStyle = 'yellow'; // Ток идет В ЭКРАН
+						symbol = "x";
+                    } else {
+                        context.fillStyle = 'red'; // Ток идет К НАБЛЮДАТЕЛЮ
+						symbol = "•";
+                    }
+					context.arc(current.x, current.y, radius, 0, 2 * Math.PI);
+                    context.fill();
+					
+					context.fillStyle = 'black';
+					context.font = '20px Arial';
+					context.fillText(symbol, current.x - radius / 2, current.y + radius / 2);
+				});
+
+				currents.forEach(function(current) {
+					for (var coef = 0; coef < linesAround; coef++) {
+						for (var angle = Math.PI / 4; angle < 2 * Math.PI; angle += Math.PI / 2) {
+							var delta = 1.1 * radius + radius * coef;
+							var x0 = current.x;
+							var y0 = current.y;
+							var x = x0 + delta;
+							var y = y0;
+							var x = (x - x0) * Math.cos(angle) - (y - y0) * Math.sin(angle) + x0;
+							var y = (x - x0) * Math.sin(angle) + (y - y0) * Math.cos(angle) + y0;
+							drawArrow(x, y);
+						}
+					}
+				});
+            }
+
+// ==================================================================
+			// LEFT CLICK 
+			// ADD NEW CURRENTS
+            canvas.addEventListener('click', function(event) {
+                var rect = canvas.getBoundingClientRect();
+                var x = event.clientX - rect.left;
+                var y = event.clientY - rect.top;
+
+                // Check if clicked on an existing current
+                var edit = false;
+                currents.forEach(function(current) {
+                    var distance = Math.sqrt(Math.pow(current.x - x, 2) + Math.pow(current.y - y, 2));
+                    if (distance < radius) {
+                        // Toggle the current direction
+                        current.strength *= -1;
+                        drawMagneticField();
+                        edit = true;
+                    }
+                });
+
+                // Add a new current if not clicked on existing current
+                if (!edit) addCurrent(x, y);
+            });
+			
+			function isValidStrength(strength) {
+                return !isNaN(strength) && strength >= 0;
+            }
+
+            function addCurrent(x, y) {
+                var strength = parseFloat(currentStrengthInput.value);
+                if (isValidStrength(strength)) {
+                    currents.push({x: x, y: y, strength: strength});
+                    drawMagneticField();
+                } else {
+                    alert('Please enter a non-negative number for current strength.');
+                }
+            }
+
+// ==================================================================
+			// RIGHT CLICK
+			// REMOVING CURRENTS
+            canvas.addEventListener('contextmenu', function(event) {
+                event.preventDefault();
+                var rect = canvas.getBoundingClientRect();
+                var x = event.clientX - rect.left;
+                var y = event.clientY - rect.top;
+                removeCurrent(x, y);
+            });
+
+            function removeCurrent(x, y) {
+                var indexToRemove = currents.findIndex(function(current) {
+                    return Math.sqrt(Math.pow(current.x - x, 2) + Math.pow(current.y - y, 2)) < radius;
+                });
+                if (indexToRemove !== -1) {
+                    currents.splice(indexToRemove, 1);
+                    drawMagneticField();
+                }
+            }
+
+// ==================================================================
+			// CLEAR CANVAS
+            clearButton.addEventListener('click', function() {
+                clearEverything();
+            });
+			
+			function clearEverything() {
+				maxInduction = 0;
+				currents = [];
+                context.clearRect(0, 0, canvas.width, canvas.height);
+			}
+        });
+    </script>
+</body>
+</html>
