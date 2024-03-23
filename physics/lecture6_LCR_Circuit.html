@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ток в цепи</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+	<style>
+		body, html {
+            height: 100%;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+
+			width: 100%;
+        }
+        .canvas-container {
+			flex: 1;
+            margin: 10px;
+            border: 1px solid #000;
+        }
+        canvas {
+            display: block;
+        }
+		
+    </style>
+</head>
+<body>
+	<center>
+
+	<h1>Затухающие колебания в LCR контуре</h1>
+    
+	<!-- Создаем элемент canvas для отображения графика -->
+	<div class="container">
+        <div class="canvas-container">
+            <canvas id="q_t" width="400" height="250"></canvas>
+        </div>
+        <div class="canvas-container">
+            <canvas id="I_t" width="400" height="250"></canvas>
+        </div>
+		<div class="canvas-container">
+            <canvas id="U_t" width="400" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- Ввод параметров -->
+	<table>
+		<tr>
+            <td><label for="initialq">Начальный заряд (Кл):</label></td>
+            <td><input type="number" id="initialq" value="1"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="inductance">Индуктивность (Гн):</label></td>
+            <td><input type="number" id="inductance" value="1"></td>
+        </tr>
+		<tr>
+            <td><label for="resistance">Сопротивление (Ом):</label></td>
+            <td><input type="number" id="resistance" value="0.2"></td>
+        </tr>
+		<tr>
+            <td><label for="capacity">Емкость конденсатора (Ф):</label></td>
+            <td><input type="number" id="capacity" value="1"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="maxTime">Сколько секунд нужно рассмотреть?</label></td>
+            <td><input type="number" id="maxTime" value="30"></td>
+        </tr>
+		<tr>
+            <td><label for="dotCount">Количество точек на графике:</label></td>
+            <td><input type="number" id="dotCount" value="500"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td></td>
+            <td><button onclick="redraw()">Построить график</button></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td>Beta</td>
+            <td><p id="beta_data">null</p></td>
+        </tr>
+		<tr>
+            <td>w0</td>
+            <td><p id="w0_data">null</p></td>
+        </tr>
+		<tr>
+            <td>R_кр</td>
+            <td><p id="r_crit_data">null</p></td>
+        </tr>
+	</table>
+	
+	</center>
+
+    <script>
+		function beta(L, R) {
+			return R / (2 * L);
+		}
+
+		function w0(L, C) {
+			return 1 / Math.sqrt(L * C);
+		}
+
+		function w(L, C, R) {
+			w0_2 = w0(L, C) * w0(L, C);
+			beta_2 = beta(L, R) * beta(L, R);
+			return Math.sqrt(w0_2 - beta_2);
+		}
+
+		function getQ(q0, L, C, R, t) {
+			return q0 * Math.exp(-1 * beta(L, R) * t) * Math.cos(w(L, C, R) * t);
+		}
+		
+		function getI(q0, L, C, R, t) {
+			return -1 * q0 * Math.exp(-1 * beta(L, R) * t) * (
+				beta(L, R) * Math.cos(w(L, C, R) * t) +
+				w(L, C, R) * Math.sin(w(L, C, R) * t)
+			);
+		}
+
+		function getU(q0, L, C, R, t) {
+			return (q0 / C) * Math.exp(-1 * beta(L, R) * t) * Math.cos(w(L, C, R) * t);
+		}
+
+		function getRcrit(L, C) {
+			return 2 * Math.sqrt(L / C);
+		}
+
+		function redraw() {
+			setupHelpers();
+			updateChart();
+		}
+
+        // Функция для обновления графика
+        function updateChart() {
+			const q0 = parseFloat(document.getElementById('initialq').value);
+
+			const inductance = parseFloat(document.getElementById('inductance').value);
+			const resistance = parseFloat(document.getElementById('resistance').value);
+			const capacity = parseFloat(document.getElementById('capacity').value);
+
+            const dotCount = parseInt(document.getElementById('dotCount').value);
+            const maxTime = parseFloat(document.getElementById('maxTime').value);
+            
+			const messageValidation = validateInput(inductance, resistance, capacity, dotCount, maxTime);
+			if (messageValidation) {
+				alert(message);
+				return;
+			}
+
+			// Установка вспомогательных данных
+			setupHelpers(inductance, capacity, resistance)
+
+            const contextQ = document.getElementById('q_t').getContext('2d');
+            const contextI = document.getElementById('I_t').getContext('2d');
+            const contextU = document.getElementById('U_t').getContext('2d');
+
+            // Генерируем значения t
+            const tValues = [];
+            for (let t = 0; t <= maxTime; t += (maxTime / dotCount)) {
+                tValues.push(toPrecision(t, 3));
+            }
+
+            // Вычисляем значения каждого значения t
+            const qValues = tValues.map(t => getQ(q0, inductance, capacity, resistance, t));
+            const iValues = tValues.map(t => getI(q0, inductance, capacity, resistance, t));
+            const uValues = tValues.map(t => getU(q0, inductance, capacity, resistance, t));
+
+            clearCanvases();
+
+			this.q_t = new Chart(contextQ, {
+				type: 'line',
+				data: {
+					labels: tValues,
+					datasets: [{
+						label: 'Величина заряда',
+						data: qValues,
+						backgroundColor: 'rgba(0, 0, 255, 0.3)',
+						borderColor: 'rgba(0, 0, 255, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Время t (с)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Заряд (Кл)'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Величина заряда'
+						}
+					}
+				}
+			});
+			
+			this.I_t = new Chart(contextI, {
+				type: 'line',
+				data: {
+					labels: tValues,
+					datasets: [{
+						label: 'Cила тока',
+						data: iValues,
+						backgroundColor: 'rgba(0, 255, 0, 0.3)',
+						borderColor: 'rgba(0, 255, 0, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Время t (с)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Сила тока I (A)'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Сила тока'
+						}
+					}
+				}
+			});
+
+			this.U_t = new Chart(contextU, {
+				type: 'line',
+				data: {
+					labels: tValues,
+					datasets: [{
+						label: 'Напряжение',
+						data: uValues,
+						backgroundColor: 'rgba(255, 128, 0, 0.3)',
+						borderColor: 'rgba(255, 128, 0, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Время t (с)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Напряжение (В)'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Напряжение'
+						}
+					}
+				}
+			});
+        }
+
+        // Инициализация графика при загрузке страницы
+		updateChart();
+		window.onresize = updateChart;
+		
+		function validateInput(inductance, resistance, capacity, dotCount, maxTime) {
+			message = "";
+			
+			if (inductance <= 0) {
+				message += "Индуктивность должна быть положительной! \n"
+			}
+			if (resistance < 0) {
+				message += "Сопротивление должно быть положительным! \n"
+			}
+			if (capacity <= 0) {
+				message += "Емкость конденсатора должна быть положительной! \n"
+			}
+
+			if (resistance > getRcrit(inductance, capacity)) {
+				message += "Периодических колебаний не будет, так как сопротивление превысило критическое значение \n"
+			}
+
+			if (dotCount <= 0) {
+				message += "Чтобы увидеть график, число точек должно быть положительным! \n"
+			}
+			if (maxTime <= 0) {
+				message += "Время должно быть положительным! \n"
+			}
+			
+			return message;
+		}
+		
+		function clearCanvases() {
+			if (this.q_t instanceof Chart) {
+				this.q_t.destroy();
+			}
+			
+			if (this.I_t instanceof Chart) {
+				this.I_t.destroy();
+			}
+			if (this.U_t instanceof Chart) {
+				this.U_t.destroy();
+			}
+		}
+		
+		function setupHelpers() {
+			const L = parseFloat(document.getElementById('inductance').value);
+			const R = parseFloat(document.getElementById('resistance').value);
+			const C = parseFloat(document.getElementById('capacity').value);
+
+			document.getElementById('beta_data').innerText = beta(L, R);
+			document.getElementById('w0_data').innerText = w0(L, C, R);
+			document.getElementById('r_crit_data').innerText = getRcrit(L, C);
+		}
+
+		function toPrecision(value, digits) {
+			const newValue = Math.round((value + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
+			return Math.round((value + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
+		}
+    </script>
+</body>
+</html>
