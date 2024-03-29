@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Биения</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+	<style>
+		body, html {
+            height: 100%;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+
+			width: 100%;
+        }
+        .canvas-container {
+			flex: 1;
+            margin: 10px;
+            border: 1px solid #000;
+        }
+        canvas {
+            display: block;
+        }
+		
+    </style>
+</head>
+<body>
+	<center>
+
+	<h1>Визуализация сложения колебаний. Биения.</h1>
+    
+	<!-- Создаем элемент canvas для отображения графика -->
+	<div class="container">
+        <div class="canvas-container">
+            <canvas id="beats" width="300" height="100"></canvas>
+        </div>
+    </div>
+
+    <!-- Ввод параметров -->
+	<table>
+		<tr>
+            <td><label for="amplitude1">Амплитуда (м):</label></td>
+            <td><input type="number" id="amplitude1" value="1"></td>
+        </tr>
+		<tr>
+            <td><label for="frequency1">Частота (Гц):</label></td>
+            <td><input type="number" id="frequency1" value="1" step="0.01"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="amplitude2">Амплитуда (м):</label></td>
+            <td><input type="number" id="amplitude2" value="1"></td>
+        </tr>
+		<tr>
+            <td><label for="frequency2">Частота (Гц):</label></td>
+            <td><input type="number" id="frequency2" value="1.15" step="0.01"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="maxTime">Сколько секунд нужно рассмотреть?</label></td>
+            <td><input type="number" id="maxTime" value="40"></td>
+        </tr>
+		<tr>
+            <td><label for="dotCount">Количество точек на графике:</label></td>
+            <td><input type="number" id="dotCount" value="1000"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td></td>
+            <td><button onclick="updateChart()">Построить график</button></td>
+        </tr>
+	</table>
+	
+	</center>
+
+    <script>
+		function getCoordinate(A, w, t) {
+			return A * Math.sin(w * t);
+		}
+
+        // Функция для обновления графика
+        function updateChart() {
+			const A1 = parseFloat(document.getElementById('amplitude1').value);
+			const w1 = parseFloat(document.getElementById('frequency1').value);
+
+			const A2 = parseFloat(document.getElementById('amplitude2').value);
+			const w2 = parseFloat(document.getElementById('frequency2').value);
+
+            const dotCount = parseInt(document.getElementById('dotCount').value);
+            const maxTime = parseFloat(document.getElementById('maxTime').value);
+            
+			const messageValidation = validateInput(A1, w1, A2, w2, dotCount, maxTime);
+			if (messageValidation) {
+				alert(message);
+				return;
+			}
+
+            const contextBeats = document.getElementById('beats').getContext('2d');
+
+            // Генерируем значения t
+            const tValues = [];
+            for (let t = 0; t <= maxTime; t += (maxTime / dotCount)) {
+                tValues.push(toPrecision(t, 3));
+            }
+
+            // Вычисляем значения каждого значения t
+            const coordValues = tValues.map(t => (getCoordinate(A1, w1, t) + getCoordinate(A2, w2, t)));
+
+            clearCanvases();
+
+			this.beats = new Chart(contextBeats, {
+				type: 'line',
+				data: {
+					labels: tValues,
+					datasets: [{
+						label: 'Координата',
+						data: coordValues,
+						backgroundColor: 'rgba(0, 0, 255, 0.3)',
+						borderColor: 'rgba(0, 0, 255, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Время t (с)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Координата Х (м)'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Биения'
+						}
+					}
+				}
+			});
+        }
+
+        // Инициализация графика при загрузке страницы
+		updateChart();
+		window.onresize = updateChart;
+		
+		function validateInput(A1, w1, A2, w2, dotCount, maxTime) {
+			message = "";
+			
+			if (A1 <= 0 || A2 <= 0) {
+				message += "Амплитуда должна быть положительной! \n"
+			}
+			if (w1 <= 0 || w2 <= 0) {
+				message += "Частота должна быть положительной! \n"
+			}
+			if (dotCount <= 0) {
+				message += "Чтобы увидеть график, число точек должно быть положительным! \n"
+			}
+			if (maxTime <= 0) {
+				message += "Время должно быть положительным! \n"
+			}
+			
+			return message;
+		}
+		
+		function clearCanvases() {
+			if (this.beats instanceof Chart) {
+				this.beats.destroy();
+			}
+		}
+		
+		function toPrecision(value, digits) {
+			const newValue = Math.round((value + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
+			console.log(value + " | " + newValue);
+			return Math.round((value + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
+		}
+    </script>
+</body>
+</html>
