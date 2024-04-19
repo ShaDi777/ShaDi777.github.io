@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Модуляция</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+	<style>
+		body, html {
+            height: 100%;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+
+			width: 100%;
+        }
+        .canvas-container {
+			flex: 1;
+            margin: 10px;
+            border: 1px solid #000;
+        }
+        canvas {
+            display: block;
+        }
+		
+    </style>
+</head>
+<body>
+	<center>
+
+	<h1>Амплитудная модуляция</h1>
+    
+	<!-- Создаем элемент canvas для отображения графика -->
+	<div class="container">
+        <div class="canvas-container">
+            <canvas id="carrier" width="400" height="250"></canvas>
+        </div>
+        <div class="canvas-container">
+            <canvas id="modulating" width="400" height="250"></canvas>
+        </div>
+		<div class="canvas-container">
+            <canvas id="modulation_result" width="400" height="250"></canvas>
+        </div>
+    </div>
+
+	<div class="container">
+        <div class="canvas-container">
+            <canvas id="spectre_carrier" width="400" height="250"></canvas>
+        </div>
+        <div class="canvas-container">
+            <canvas id="spectre_modulating" width="400" height="250"></canvas>
+        </div>
+		<div class="canvas-container">
+            <canvas id="spectre_modulation_result" width="400" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- Ввод параметров -->
+	<table>
+		<tr>
+            <td><label for="coef">Коэффициент модуляции:</label></td>
+            <td><input type="number" id="coef" value="0.8" step="0.1"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="label_carrier">Несущий сигнал:</label></td>
+        </tr>
+		<tr>
+            <td><label for="freq_carrier">Частота (Гц):</label></td>
+            <td><input type="number" id="freq_carrier" value="20"></td>
+        </tr>
+		<tr>
+            <td><label for="amp_carrier">Амплитуда:</label></td>
+            <td><input type="number" id="amp_carrier" value="1"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="label_modulating">Информационный сигнал:</label></td>
+        </tr>
+		<tr>
+            <td><label for="freq_modulating">Частота (Гц):</label></td>
+            <td><input type="number" id="freq_modulating" value="1"></td>
+        </tr>
+		<tr>
+            <td><label for="amp_modulating">Амплитуда:</label></td>
+            <td><input type="number" id="amp_modulating" value="1"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="maxTime">Сколько секунд?</label></td>
+            <td><input type="number" id="maxTime" value="2"></td>
+        </tr>
+		<tr>
+            <td><label for="dotCount">Точек на графике:</label></td>
+            <td><input type="number" id="dotCount" value="500"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td></td>
+            <td><button onclick="updateChart()">Построить график</button></td>
+        </tr>
+	</table>
+	
+	</center>
+
+    <script>
+		function getCarrier(amp_carrier, freq_carrier, t) {
+			return amp_carrier * Math.cos(2 * Math.PI * freq_carrier * t);
+		}
+
+		function getModulating(amp_modulating, freq_modulating, t) {
+			return amp_modulating * Math.cos(2 * Math.PI * freq_modulating * t);
+		}
+
+		function getResult(coef, amp_carrier, freq_carrier, amp_modulating, freq_modulating, t) {
+			carrier_val = getCarrier(amp_carrier, freq_carrier, t);
+			modulating_val = getModulating(amp_modulating, freq_modulating, t);
+			return carrier_val * (1 + coef * modulating_val / amp_modulating);
+		}
+
+		function getSpectreDefault(freq, ampl, dotCount) {
+			let init = false;
+			let freqValues = [];
+			let amplValues = [];
+            for (let t = 0; t <= 2 * freq; t += (2 * freq / dotCount)) {
+                if (t >= freq && !init) {
+					init = true
+					freqValues.push(freq);
+					amplValues.push(ampl);
+					continue;
+				}
+				freqValues.push(toPrecision(t, 3));
+				amplValues.push(0);
+            }
+
+			return [ freqValues, amplValues ];
+		}
+
+		function getSpectreResult(coef, amp_carrier, freq_carrier, amp_modulating, freq_modulating, dotCount) {
+			height = amp_carrier * coef * amp_modulating / 2;
+			
+			let initLeft = false;
+			let initMiddle = false;
+			let initRight = false;
+
+			let freqValues = [];
+			let amplValues = [];
+            for (let t = 0; t <= 2 * (freq_carrier + freq_modulating); t += (2 * (freq_carrier + freq_modulating) / dotCount)) {
+                if (t >= (freq_carrier - freq_modulating) && (freq_carrier - freq_modulating) > 0 && !initLeft) {
+					initLeft = true
+					freqValues.push(freq_carrier - freq_modulating);
+					amplValues.push(height);
+					continue;
+				}
+
+				if (t >= (freq_carrier) && !initMiddle) {
+					initMiddle = true
+					freqValues.push(freq_carrier);
+					amplValues.push(amp_carrier);
+					continue;
+				}
+
+				if (t >= (freq_carrier + freq_modulating) && !initRight) {
+					initRight = true
+					freqValues.push(freq_carrier + freq_modulating);
+					amplValues.push(height);
+					continue;
+				}
+	
+				freqValues.push(toPrecision(t, 3));
+				amplValues.push(0);
+            }
+
+			return [ freqValues, amplValues ];
+		}
+
+
+        // Функция для обновления графика
+        function updateChart() {
+			const coef = parseFloat(document.getElementById('coef').value);
+
+			const freq_carrier = parseFloat(document.getElementById('freq_carrier').value);
+			const amp_carrier = parseFloat(document.getElementById('amp_carrier').value);
+
+			const freq_modulating = parseFloat(document.getElementById('freq_modulating').value);
+			const amp_modulating = parseFloat(document.getElementById('amp_modulating').value);
+
+            const dotCount = parseInt(document.getElementById('dotCount').value);
+            const maxTime = parseFloat(document.getElementById('maxTime').value);
+            
+			const messageValidation = validateInput(freq_carrier, amp_carrier, freq_modulating, amp_modulating, dotCount, maxTime);
+			if (messageValidation) {
+				alert(message);
+				return;
+			}
+
+            const contextCarrier = document.getElementById('carrier').getContext('2d');
+            const contextModulating = document.getElementById('modulating').getContext('2d');
+            const contextResult = document.getElementById('modulation_result').getContext('2d');
+
+			const contextSpectreCarrier = document.getElementById('spectre_carrier').getContext('2d');
+            const contextSpectreModulating = document.getElementById('spectre_modulating').getContext('2d');
+            const contextSpectreResult = document.getElementById('spectre_modulation_result').getContext('2d');
+
+            // Генерируем значения t
+            const tValues = [];
+            for (let t = 0; t <= maxTime; t += (maxTime / dotCount)) {
+                tValues.push(toPrecision(t, 3));
+            }
+
+            // Вычисляем значения каждого значения t
+            const carrierValues = tValues.map(t => getCarrier(amp_carrier, freq_carrier, t));
+            const modulatingValues = tValues.map(t => getModulating(amp_modulating, freq_modulating, t));
+            const resultValues = tValues.map(t => getResult(coef, amp_carrier, freq_carrier, amp_modulating, freq_modulating, t));
+
+            clearCanvases();
+
+			this.carrier = new Chart(contextCarrier, {
+				type: 'line',
+				data: {
+					labels: tValues,
+					datasets: [{
+						label: 'Несущий сигнал',
+						data: carrierValues,
+						backgroundColor: 'rgba(0, 0, 255, 0.3)',
+						borderColor: 'rgba(0, 0, 255, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Время t (с)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Амплитуда'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Несущий сигнал'
+						}
+					}
+				}
+			});
+			
+			this.modulating = new Chart(contextModulating, {
+				type: 'line',
+				data: {
+					labels: tValues,
+					datasets: [{
+						label: 'Информационный сигнал',
+						data: modulatingValues,
+						backgroundColor: 'rgba(0, 255, 0, 0.3)',
+						borderColor: 'rgba(0, 255, 0, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Время t (с)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Амплитуда'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Информационный сигнал'
+						}
+					}
+				}
+			});
+
+			this.modulation_result = new Chart(contextResult, {
+				type: 'line',
+				data: {
+					labels: tValues,
+					datasets: [{
+						label: 'Результат модуляции',
+						data: resultValues,
+						backgroundColor: 'rgba(255, 128, 0, 0.3)',
+						borderColor: 'rgba(255, 128, 0, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Время t (с)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Амплитуда'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Результат модуляции'
+						}
+					}
+				}
+			});
+
+
+			arrs = getSpectreDefault(freq_carrier, amp_carrier, dotCount); 
+			this.spectre_carrier = new Chart(contextSpectreCarrier, {
+				type: 'line',
+				data: {
+					labels: arrs[0],
+					datasets: [{
+						label: 'Спектр несущего сигнала',
+						data: arrs[1],
+						backgroundColor: 'rgba(0, 0, 255, 0.3)',
+						borderColor: 'rgba(0, 0, 255, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Частота (Гц)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Амплитуда'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Спектр несущего сигнала'
+						}
+					}
+				}
+			});
+			
+			arrs = getSpectreDefault(freq_modulating, amp_modulating, dotCount); 
+			this.spectre_modulating = new Chart(contextSpectreModulating, {
+				type: 'line',
+				data: {
+					labels: arrs[0],
+					datasets: [{
+						label: 'Спектр информационного сигнала',
+						data: arrs[1],
+						backgroundColor: 'rgba(0, 255, 0, 0.3)',
+						borderColor: 'rgba(0, 255, 0, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Частота (Гц)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Амплитуда'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Спектр информационного сигнала'
+						}
+					}
+				}
+			});
+		
+			arrs = getSpectreResult(coef, amp_carrier, freq_carrier, amp_modulating, freq_modulating, dotCount); 
+			this.spectre_modulation_result = new Chart(contextSpectreResult, {
+				type: 'line',
+				data: {
+					labels: arrs[0],
+					datasets: [{
+						label: 'Спектр результата модуляции',
+						data: arrs[1],
+						backgroundColor: 'rgba(255, 128, 0, 0.3)',
+						borderColor: 'rgba(255, 128, 0, 1)',
+						borderWidth: 1
+					}]
+				},
+				options: {
+					scales: {
+						x: {
+							title: {
+								display: true,
+								text: 'Частота (Гц)'
+							}
+						},
+						y: {
+							title: {
+								display: true,
+								text: 'Амплитуда'
+							}
+						}
+					}, 
+					plugins: {
+						legend: {
+							position: 'top',
+						},
+						title: {
+							display: true,
+							text: 'Спектр результата модуляции'
+						}
+					}
+				}
+			});
+		}
+
+        // Инициализация графика при загрузке страницы
+		updateChart();
+		window.onresize = updateChart;
+		
+		function validateInput(coef, freq_carrier, amp_carrier, freq_modulating, amp_modulating, dotCount, maxTime) {
+			message = "";
+			
+			if (coef < 0) {
+				message += "Коэффициент модуляции должен быть неотрицательным! \n"
+			}
+
+			if (freq_carrier <= 0) {
+				message += "Частота несущего сигнала должна быть положительной! \n"
+			}
+			if (amp_carrier <= 0) {
+				message += "Амплитуда несущего сигнала должна быть положительной! \n"
+			}
+			if (freq_modulating <= 0) {
+				message += "Частота информационного сигнала должна быть положительной! \n"
+			}
+			if (amp_modulating <= 0) {
+				message += "Амплитуда информационного сигнала должна быть положительной! \n"
+			}
+
+			if (dotCount <= 0) {
+				message += "Чтобы увидеть график, число точек должно быть положительным! \n"
+			}
+			if (maxTime <= 0) {
+				message += "Время должно быть положительным! \n"
+			}
+			
+			return message;
+		}
+		
+		function clearCanvases() {
+			if (this.carrier instanceof Chart) {
+				this.carrier.destroy();
+			}
+			
+			if (this.modulating instanceof Chart) {
+				this.modulating.destroy();
+			}
+			if (this.modulation_result instanceof Chart) {
+				this.modulation_result.destroy();
+			}
+
+			if (this.spectre_carrier instanceof Chart) {
+				this.spectre_carrier.destroy();
+			}
+			if (this.spectre_modulating instanceof Chart) {
+				this.spectre_modulating.destroy();
+			}
+			if (this.spectre_modulation_result instanceof Chart) {
+				this.spectre_modulation_result.destroy();
+			}
+		}
+
+		function toPrecision(value, digits) {
+			const newValue = Math.round((value + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
+			return Math.round((value + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
+		}
+    </script>
+</body>
+</html>
