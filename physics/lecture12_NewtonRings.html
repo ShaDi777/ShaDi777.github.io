@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кольца Ньютона</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+	<style>
+		body, html {
+            height: 100%;
+        }
+        .container {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+
+			width: 100%;
+        }
+        .canvas-container {
+			flex: 1;
+            margin: 10px;
+            border: 1px solid #000;
+        }
+        canvas {
+            display: block;
+        }
+		
+    </style>
+</head>
+<body>
+	<center>
+
+	<h1>Кольца Ньютона</h1>
+    
+	<!-- Создаем элемент canvas для отображения графика -->
+	<div class="container">
+        <div class="canvas-container">
+            <canvas id="canvas_intensity" width="400" height="200"></canvas>
+        </div>
+        <div class="canvas-container">
+            <canvas id="canvas" width="500" height="500"></canvas>
+        </div>
+    </div>
+
+    <!-- Ввод параметров -->
+	<table>
+		<tr>
+            <td><label for="wavelength">Длина волны (нм):</label></td>
+            <td><input type="number" id="wavelength" value="500"></td>
+        </tr>
+		<tr>
+            <td><label for="n1">Показатель преломления ЛИНЗЫ n1:</label></td>
+            <td><input type="number" id="n1" value="3"></td>
+        </tr>
+        <tr>
+            <td><label for="n2">Показатель преломления СРЕДЫ n2:</label></td>
+            <td><input type="number" id="n2" value="2"></td>
+        </tr>
+        <tr>
+            <td><label for="n3">Показатель преломления ПЛАСТИНЫ n3:</label></td>
+            <td><input type="number" id="n3" value="1"></td>
+        </tr>
+        <tr>
+            <td><label for="r">Радиус кривизны линзы (м):</label></td>
+            <td><input type="number" id="r" value="0.2"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="screenSize">Размеры экрана (м)</label></td>
+            <td><input type="number" id="screenSize" value="0.001"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td></td>
+            <td><button onclick="updateScreen()">Построить изображение</button></td>
+        </tr>
+	</table>
+	
+	</center>
+
+    <script>
+    // Формулы из лабораторной работа 4.03
+
+    // https://ru.wikipedia.org/wiki/%D0%A4%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D1%8B_%D0%A4%D1%80%D0%B5%D0%BD%D0%B5%D0%BB%D1%8F#%D0%9D%D0%BE%D1%80%D0%BC%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B5_%D0%BF%D0%B0%D0%B4%D0%B5%D0%BD%D0%B8%D0%B5
+    /*
+    коэффициенты Френеля 
+    для отражённой волны - R
+    для преломлённой - T
+    */
+    function getFrenelR(n1, n2) {
+        return Math.pow((n2 - n1)/(n2 + n1), 2);
+    }
+    function getFrenelT(n1, n2) {
+        return (4 * n1 * n2)/(Math.pow(n2 + n1, 2));
+    }
+    
+    function optDifference(R, cur_r, n2, wavelength) {
+        return 2 * (Math.pow(cur_r, 2) / (2 * R)) * n2 + (wavelength / 2);
+    }
+
+    /*
+    Пусть 
+    I1 - волна прошедшая через линзу, преломилась на границе линза/среда, отразилась от пластины и ещё раз преломилась на границе среда/линза 
+    I2 - волна прошедшая через линзу и отраженная на границе линза/среда.
+    */
+    function calculateIntensity(wavelength, n1, n2, n3, R, x) {
+        const T12 = getFrenelT(n1, n2);
+        const R23 = getFrenelR(n2, n3);
+        const T21 = getFrenelT(n2, n1);
+
+        const R12 = getFrenelR(n1, n2);
+
+        const k = 2 * Math.PI / wavelength;
+        const I1 = T12 * R23 * T21;
+        const I2 = R12;
+        return I1 + I2 + 2 * Math.sqrt(I1 * I2) * Math.cos(k * optDifference(R, x, n2, wavelength));
+    }
+
+    function calculateIntensityArray(wavelength, n1, n2, n3, R, xValues) {
+        var minIntensity = 999999999;
+        var maxIntensity = -999999999;
+        var intensityArray = [];
+
+        for (i = 0; i < xValues.length; i++) {
+            var x = xValues[i];
+            const intensity = calculateIntensity(wavelength, n1, n2, n3, R, x);
+            intensityArray.push(intensity);
+
+            minIntensity = Math.min(minIntensity, intensity);
+            maxIntensity = Math.max(maxIntensity, intensity);
+        }
+
+        return intensityArray.map(i => (i - minIntensity) / (maxIntensity - minIntensity));
+    }
+
+    function drawPicture(color, intensityArray) {
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < intensityArray.length; i++) {
+            var intensity = intensityArray[i];
+
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2, i, 0, 2 * Math.PI);
+            ctx.strokeStyle = "rgb(" + color[0]*intensity + ", " + color[1]*intensity + ", " + color[2]*intensity + ")";
+            ctx.stroke();
+        }
+    }
+
+    function updateScreen() {
+        const wavelength = Math.pow(10, -9) * parseFloat(document.getElementById("wavelength").value);
+        const n1 = parseFloat(document.getElementById("n1").value); // Линза
+        const n2 = parseFloat(document.getElementById("n2").value); // Среда
+        const n3 = parseFloat(document.getElementById("n3").value); // Пластина
+        const R = parseFloat(document.getElementById("r").value);
+        const screenSize = parseFloat(document.getElementById("screenSize").value);
+
+        var rValues = [];
+        for (let rv = 0; rv <= (screenSize/2)*Math.sqrt(2); rv += ((screenSize/2)*Math.sqrt(2)) / (canvas.width / 2)) {
+            rValues.push(toPrecision(rv, 10));
+        }
+        var intensityArray = calculateIntensityArray(wavelength, n1, n2, n3, R, rValues);
+
+        const color = nmToRGB(wavelength);
+        drawPicture(color, intensityArray);
+        drawChart(rValues, intensityArray);
+    }
+
+    function nmToRGB(wavelengthInput) {
+        var wavelength = wavelengthInput * Math.pow(10, 9);
+        var Gamma = 0.80,
+        IntensityMax = 255,
+        factor, red, green, blue;
+        if((wavelength >= 380) && (wavelength<440)){
+            red = -(wavelength - 440) / (440 - 380);
+            green = 0.0;
+            blue = 1.0;
+        }else if((wavelength >= 440) && (wavelength<490)){
+            red = 0.0;
+            green = (wavelength - 440) / (490 - 440);
+            blue = 1.0;
+        }else if((wavelength >= 490) && (wavelength<510)){
+            red = 0.0;
+            green = 1.0;
+            blue = -(wavelength - 510) / (510 - 490);
+        }else if((wavelength >= 510) && (wavelength<580)){
+            red = (wavelength - 510) / (580 - 510);
+            green = 1.0;
+            blue = 0.0;
+        }else if((wavelength >= 580) && (wavelength<645)){
+            red = 1.0;
+            green = -(wavelength - 645) / (645 - 580);
+            blue = 0.0;
+        }else if((wavelength >= 645) && (wavelength<781)){
+            red = 1.0;
+            green = 0.0;
+            blue = 0.0;
+        }else{
+            red = 211.0;
+            green = 211.0;
+            blue = 211.0;
+
+            return [red,green,blue];
+        };
+        // Let the intensity fall off near the vision limits
+        if((wavelength >= 380) && (wavelength<420)){
+            factor = 0.3 + 0.7*(wavelength - 380) / (420 - 380);
+        }else if((wavelength >= 420) && (wavelength<701)){
+            factor = 1.0;
+        }else if((wavelength >= 701) && (wavelength<781)){
+            factor = 0.3 + 0.7*(780 - wavelength) / (780 - 700);
+        }else{
+            factor = 0.0;
+        };
+        if (red !== 0){
+            red = Math.round(IntensityMax * Math.pow(red * factor, Gamma));
+        }
+        if (green !== 0){
+            green = Math.round(IntensityMax * Math.pow(green * factor, Gamma));
+        }
+        if (blue !== 0){
+            blue = Math.round(IntensityMax * Math.pow(blue * factor, Gamma));
+        }
+        return [red,green,blue];
+    }
+
+    function drawChart(xValues, intensityArray) {
+        const canvas_intensity = document.getElementById("canvas_intensity");
+        const ctx = canvas_intensity.getContext("2d");
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (this.canvas_intensity instanceof Chart) {
+            this.canvas_intensity.destroy();
+        }
+
+        this.canvas_intensity = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: xValues,
+                datasets: [{
+                    label: 'Интенсивность',
+                    data: intensityArray,
+                    backgroundColor: 'rgba(0, 0, 255, 0.3)',
+                    borderColor: 'rgba(0, 0, 255, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Радиус r, м'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Интенсивность'
+                        }
+                    }
+                }, 
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    title: {
+                        display: true,
+                        text: 'Интенсивность'
+                    }
+                }
+            }
+        });
+    }
+
+    function validateInput(wavelength, n1, n2, n3, r, screenSize) {
+        message = "";
+        
+        if (wavelength <= 0) {
+            message += "Длина волны должна быть положительной! \n"
+        }
+
+        if (n1 < 1 || n2 < 1 || n3 < 1) {
+            message += "Абсолютный показатель преломления не может быть меньше единицы! \n"
+        }
+
+        if (r <= 0) {
+            message += "Радиус кривизны линзы должен быть положительным! \n"
+        }
+
+        if (screenSize <= 0) {
+            message += "Размер экрана должен быть положительным! \n"
+        }
+        
+        return message;
+    }
+
+    function toPrecision(value, digits) {
+        const newValue = Math.round((value + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
+        return Math.round((value + Number.EPSILON) * Math.pow(10, digits)) / Math.pow(10, digits);
+    }
+
+    // Инициализация графика при загрузке страницы
+    updateScreen();
+    window.onresize = updateScreen;
+    </script>
+</body>
+</html>
