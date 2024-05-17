@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дифракция</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+	<style>
+		body, html {
+            height: 100%;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+        }
+		
+    </style>
+</head>
+<body>
+	<center>
+
+	<h1>Визуализация дифракционной картины от решетки</h1>
+    
+	<!-- Создаем элемент canvas для отображения графика -->
+	<div class="container">
+        <div class="canvas-container">
+            <canvas id="canvas_intensity" width="1033" height="250"></canvas>
+        </div>
+        <div class="canvas-container">
+            <canvas id="canvas" width="992" height="250" style="margin-left: 20px;"></canvas>
+        </div>
+    </div>
+
+    <!-- Ввод параметров -->
+	<table>
+        <tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="wavelength">Длина волны (нм):</label></td>
+            <td><input type="number" id="wavelength" value="600"></td>
+        </tr>
+		<tr>
+            <td><label for="n">Количество щелей N:</label></td>
+            <td><input type="number" id="n" value="2"></td>
+        </tr>
+        <tr>
+            <td><label for="w">Ширина щели (м):</label></td>
+            <td><input type="number" id="w" value="1E-4"></td>
+        </tr>
+        <tr>
+            <td><label for="step">Расстояние между краями щелей  (м):</label></td>
+            <td><input type="number" id="step" value="1E-4"></td>
+        </tr>
+        <tr>
+            <td><label for="L">Расстояние до экрана L (м):</label></td>
+            <td><input type="number" id="L" value="2"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td><label for="width">Ширина экрана (в м)</label></td>
+            <td><input type="number" id="width" value="3"></td>
+        </tr>
+		<tr> 
+			<!-- SEPARATOR -->
+			<td> &nbsp; </td>
+			<!-- SEPARATOR -->
+		</tr>
+		<tr>
+            <td></td>
+            <td><button onclick="startSimulation()">Построить изображение</button></td>
+        </tr>
+	</table>
+	
+	</center>
+
+    <script src="helper_functions.js"></script>
+    <script src="calculation.js"></script>
+    <script src="renderer.js"></script>
+    <script src="main_script.js"></script>
+</body>
+</html>
